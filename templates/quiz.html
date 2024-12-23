@@ -17,18 +17,172 @@
         
         <h3 class="mb-4">{{ question.question }}</h3>
         
-        <form method="POST">
-            {% for option in question.options %}
-            <div class="form-check mb-3">
-                <input class="form-check-input" type="radio" name="answer" 
-                       value="{{ option }}" id="{{ option }}" required>
-                <label class="form-check-label" for="{{ option }}">
-                    {{ option }}
-                </label>
+        <form id="quizForm" method="POST">
+            <div id="options-container">
+                {% for option in question.options %}
+                <div class="option-wrapper mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="answer" 
+                               value="{{ option }}" id="{{ option }}" required>
+                        <label class="form-check-label" for="{{ option }}">
+                            {{ option }}
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
             </div>
-            {% endfor %}
-            <button type="submit" class="btn btn-primary btn-lg mt-3">Next</button>
+
+            <div id="feedback" class="alert mt-3" style="display: none;">
+                <p class="mb-0"></p>
+                <div class="explanation mt-2"></div>
+            </div>
+
+            <button type="submit" id="submitBtn" class="btn btn-primary btn-lg mt-3">Submit Answer</button>
+            <button type="button" id="nextBtn" class="btn btn-success btn-lg mt-3" style="display: none;">Next Question</button>
         </form>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('quizForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const feedback = document.getElementById('feedback');
+    const optionsContainer = document.getElementById('options-container');
+    const isLastQuestion = {{ question_number }} === {{ total_questions }};
+    
+    form.onsubmit = async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        const answer = formData.get('answer');
+        
+        if (!answer) {
+            alert('Please select an answer');
+            return;
+        }
+
+        // Disable all radio buttons
+        const radioButtons = form.querySelectorAll('input[type="radio"]');
+        radioButtons.forEach(radio => radio.disabled = true);
+        
+        // Hide submit button and show next/finish button
+        submitBtn.style.display = 'none';
+        nextBtn.style.display = 'inline-block';
+        
+        // Change next button text if it's the last question
+        if (isLastQuestion) {
+            nextBtn.textContent = 'Submit Quiz';
+            nextBtn.classList.remove('btn-success');
+            nextBtn.classList.add('btn-primary');
+        }
+        
+        try {
+            const response = await fetch('/check_answer', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    answer: answer,
+                    question_id: '{{ question.id }}'
+                })
+            });
+            
+            const result = await response.json();
+            
+            // Show feedback
+            feedback.style.display = 'block';
+            feedback.className = `alert ${result.correct ? 'alert-success' : 'alert-danger'} mt-3`;
+            feedback.querySelector('p').textContent = result.correct ? 
+                '✅ Correct!' : '❌ Incorrect!';
+            
+            // Highlight correct and incorrect answers
+            const options = optionsContainer.querySelectorAll('.option-wrapper');
+            options.forEach(option => {
+                const radio = option.querySelector('input[type="radio"]');
+                const label = option.querySelector('label');
+                
+                if (radio.value === result.correct_answer) {
+                    option.classList.add('correct-answer');
+                    label.style.color = '#198754';  // Success green
+                } else if (radio.value === answer && !result.correct) {
+                    option.classList.add('incorrect-answer');
+                    label.style.color = '#dc3545';  // Danger red
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error:', error);
+            feedback.style.display = 'block';
+            feedback.className = 'alert alert-danger mt-3';
+            feedback.querySelector('p').textContent = 'Error submitting answer. Please try again.';
+        }
+    };
+    
+    nextBtn.onclick = function() {
+        // Create a hidden input to indicate this is a "next" action
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = 'action';
+        hiddenInput.value = 'next';
+        form.appendChild(hiddenInput);
+        
+        // Submit the form normally (POST request)
+        form.submit();
+    };
+});
+</script>
+
+<style>
+.option-wrapper {
+    transition: all 0.3s ease;
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.correct-answer {
+    background-color: rgba(25, 135, 84, 0.1);
+    border-left: 4px solid #198754;
+}
+
+.incorrect-answer {
+    background-color: rgba(220, 53, 69, 0.1);
+    border-left: 4px solid #dc3545;
+}
+
+.form-check-input:checked + .form-check-label {
+    font-weight: bold;
+}
+
+.progress {
+    height: 10px;
+    border-radius: 5px;
+}
+
+.progress-bar {
+    background-color: #198754;
+    transition: width 0.3s ease;
+}
+
+.btn {
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.card {
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+</style>
 {% endblock %} 

@@ -7,6 +7,8 @@ import os
 from sqlalchemy import func
 from functools import wraps
 from random import sample
+from contextlib import contextmanager
+from sqlalchemy.exc import OperationalError
 
 app = Flask(__name__)
 # Database configuration
@@ -14,6 +16,10 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'quiz.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = 'your_secret_key_here'
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+}
 
 # Initialize extensions
 db.init_app(app)
@@ -81,6 +87,29 @@ def index():
                                  .all()
     return render_template('index.html', quiz_history=quiz_history)
 
+# Add this context manager for database operations
+@contextmanager
+def safe_db_session():
+    try:
+        yield db.session
+        db.session.commit()
+    except OperationalError as e:
+        db.session.rollback()
+        # Wait and retry once
+        import time
+        time.sleep(1)
+        try:
+            yield db.session
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            flash('Error saving score. Please try again.', 'error')
+            raise e
+    except Exception as e:
+        db.session.rollback()
+        flash('Error saving score. Please try again.', 'error')
+        raise e
+
 @app.route('/quiz', methods=['GET', 'POST'])
 @login_required
 def quiz():
@@ -102,7 +131,7 @@ def quiz():
                 'question': q.question_text,
                 'options': [q.option_1, q.option_2, q.option_3, q.option_4],
                 'correct_answer': q.correct_answer,
-                'category': q.category.name  # Include category name for display
+                'category': q.category.name
             }
             for q in selected_questions
         ]
@@ -112,30 +141,27 @@ def quiz():
     current_questions = session.get('questions', [])
     
     if request.method == 'POST':
-        answer = request.form.get('answer')
-        correct_answer = current_questions[session['question_index']]['correct_answer']
-        
-        if answer == correct_answer:
-            session['score'] += 1
-        
         session['question_index'] += 1
         
         if session['question_index'] >= len(current_questions):
             # Calculate percentage score
             percentage = (session['score'] / len(current_questions)) * 100
-            
-            # Save quiz score
-            score = QuizScore(
-                score=session['score'],
-                user_id=current_user.id,
-                date=datetime.now()
-            )
-            db.session.add(score)
-            db.session.commit()
-            
             final_score = session['score']
             total_questions = len(current_questions)
             
+            # Save quiz score with retry mechanism
+            try:
+                with safe_db_session() as db_session:
+                    score = QuizScore(
+                        score=final_score,
+                        user_id=current_user.id,
+                        date=datetime.now()
+                    )
+                    db_session.add(score)
+            except Exception as e:
+                app.logger.error(f"Error saving score: {str(e)}")
+                # Even if save fails, show the score to user
+                
             # Clear session data
             session.pop('questions', None)
             session.pop('score', None)
@@ -250,6 +276,26 @@ def admin_delete_question(question_id):
     db.session.delete(question)
     db.session.commit()
     return jsonify({'success': True})
+
+@app.route('/check_answer', methods=['POST'])
+@login_required
+def check_answer():
+    data = request.get_json()
+    answer = data.get('answer')
+    question_id = data.get('question_id')
+    
+    # Get current question from session
+    current_question = session['questions'][session['question_index']]
+    
+    is_correct = answer == current_question['correct_answer']
+    
+    if is_correct:
+        session['score'] += 1
+    
+    return jsonify({
+        'correct': is_correct,
+        'correct_answer': current_question['correct_answer']
+    })
 
 if __name__ == '__main__':
     app.run(debug=True) 
