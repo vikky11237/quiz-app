@@ -152,4 +152,3 @@ with app.app_context():
 ## License
 MIT License
 
-Would you like me to expand on any particular section or add additional documentation?
