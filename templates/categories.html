@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card shadow-lg">
+    <div class="card-body p-5">
+        <h2 class="mb-4">Choose a Quiz Category</h2>
+        
+        <div class="row row-cols-1 row-cols-md-3 g-4">
+            {% for category in categories %}
+            <div class="col">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ category.name }}</h5>
+                        <p class="card-text">
+                            Questions: {{ category.questions|length }}
+                        </p>
+                        <a href="{{ url_for('quiz', category=category.id) }}" 
+                           class="btn btn-primary">Start Quiz</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

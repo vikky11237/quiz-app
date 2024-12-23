@@ -1,0 +1,32 @@
+body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.card {
+    border: none;
+    border-radius: 15px;
+}
+
+.progress {
+    height: 10px;
+    border-radius: 5px;
+}
+
+.form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-primary {
+    padding: 12px 30px;
+    font-weight: 500;
+}
+
+.display-4 {
+    color: #2c3e50;
+}
+
+.lead {
+    color: #34495e;
+}

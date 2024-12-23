@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card shadow-lg">
+    <div class="card-body p-5">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="text-center mb-4">
+                    <div class="display-1 text-primary mb-3">
+                        <i class="bi bi-person-circle"></i>
+                    </div>
+                    <h2>{{ current_user.username }}</h2>
+                    <p class="text-muted">Member since: {{ current_user.id|format_date }}</p>
+                </div>
+                
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Statistics</h5>
+                        <ul class="list-unstyled">
+                            <li>Total Quizzes: {{ quiz_stats.total_attempts }}</li>
+                            <li>Average Score: {{ "%.1f"|format(quiz_stats.average_score) }}%</li>
+                            <li>Highest Score: {{ quiz_stats.highest_score }}%</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <h3 class="mb-4">Quiz History</h3>
+                {% if quiz_history %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Score</th>
+                                <th>Percentage</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for score in quiz_history %}
+                            <tr>
+                                <td>{{ score.date.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ score.score }}/{{ total_questions }}</td>
+                                <td>{{ (score.score / total_questions * 100)|round(1) }}%</td>
+                                <td>
+                                    {% if (score.score / total_questions * 100) >= 70 %}
+                                        <span class="badge bg-success">Passed</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Failed</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="mt-4">
+                    <canvas id="scoreChart"></canvas>
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    No quiz attempts yet. <a href="{{ url_for('quiz') }}">Take your first quiz!</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    {% if quiz_history %}
+    const ctx = document.getElementById('scoreChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ dates|tojson }},
+            datasets: [{
+                label: 'Quiz Scores',
+                data: {{ scores|tojson }},
+                borderColor: 'rgb(75, 192, 192)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+    {% endif %}
+</script>
+{% endblock %} 
